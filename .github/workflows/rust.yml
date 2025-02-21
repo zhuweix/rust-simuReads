@@ -32,16 +32,26 @@ jobs:
     
     - name: Build release
       run: cargo build --verbose --release
+      
+    - name: List binary location
+      run: ls -l target/release/
+
+    - name: Get binary name
+      id: get_binary
+      run: |
+        BINARY_NAME=$(cargo metadata --format-version 1 | jq -r '.packages[0].name')
+        echo "BINARY_NAME=$BINARY_NAME" >> $GITHUB_OUTPUT
     
-    - name: Get tag name
-      id: get_tag
-      run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+    - name: Package Binary
+      run: |
+        cd target/release
+        tar czf ../../${{ steps.get_binary.outputs.BINARY_NAME }}-linux-x64.tar.gz ${{ steps.get_binary.outputs.BINARY_NAME }}
+        cd ../..
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        name: Release ${{ steps.get_tag.outputs.TAG }}
         files: |
-          target/release/*
+          ${{ steps.get_binary.outputs.BINARY_NAME }}-linux-x64.tar.gz
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
