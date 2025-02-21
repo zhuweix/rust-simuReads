@@ -2,28 +2,33 @@ name: Rust
 
 on:
   push:
-    tags:
-      - 'v*' # Trigger on version tags
+    branches: [ "main" ]
+    tags: [ 'v*' ]  # Also trigger on version tags
+  pull_request:
+    branches: [ "main" ]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-and-release:
-    name: Build and Release
+  build:
     runs-on: ubuntu-latest
-    
     steps:
     - uses: actions/checkout@v4
     
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-    
-    - name: Cache dependencies
-      uses: Swatinem/rust-cache@v2
+    - name: Build
+      run: cargo build --verbose
     
     - name: Run tests
       run: cargo test --verbose
+
+  # Release job only runs when pushing a tag
+  release:
+    needs: build  # Wait for build to succeed
+    if: startsWith(github.ref, 'refs/tags/v')  # Only run for version tags
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
     
     - name: Build release
       run: cargo build --verbose --release
@@ -33,47 +38,10 @@ jobs:
       run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
     
     - name: Create Release
-      id: create_release
       uses: softprops/action-gh-release@v1
       with:
         name: Release ${{ steps.get_tag.outputs.TAG }}
-        draft: false
-        prerelease: false
-        generate_release_notes: true
         files: |
           target/release/*
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # Optional: Build for multiple platforms
-  build-cross-platform:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        include:
-          - os: ubuntu-latest
-            artifact_name: linux
-            asset_name: app-linux
-          - os: windows-latest
-            artifact_name: windows
-            asset_name: app-windows.exe
-          - os: macos-latest
-            artifact_name: macos
-            asset_name: app-macos
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-    
-    - name: Build
-      run: cargo build --verbose --release
-    
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: ${{ matrix.artifact_name }}
-        path: target/release/${{ matrix.asset_name }}
